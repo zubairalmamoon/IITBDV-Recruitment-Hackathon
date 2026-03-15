@@ -22,40 +22,60 @@ def plan(cones: list[dict]) -> list[dict]:
     B = np.array([[c["x"], c["y"]] for c in blue_cones])
     Y = np.array([[c["x"], c["y"]] for c in yellow_cones])
 
-    # 2. Function to calculate normalized cumulative distance along a boundary
-    def calc_normalized_dist(points):
-        # Calculate distances between consecutive points
+    # 2. Function to create a highly dense line of points between the cones
+    def densify(points, num_points=500):
+        # Calculate cumulative distances between cones
         diffs = np.diff(points, axis=0)
         dists = np.linalg.norm(diffs, axis=1)
-        # Cumulative sum of distances
-        cum_dist = np.concatenate(([0], np.cumsum(dists)))
-        # Normalize to range [0, 1]
-        if cum_dist[-1] > 0:
-            cum_dist = cum_dist / cum_dist[-1]
-        return cum_dist
+        cum_dists = np.concatenate(([0], np.cumsum(dists)))
+        
+        # Create an evenly spaced array of distances
+        even_dists = np.linspace(0, cum_dists[-1], num_points)
+        
+        # Interpolate x and y coordinates to fill in the gaps between cones
+        x_dense = np.interp(even_dists, cum_dists, points[:, 0])
+        y_dense = np.interp(even_dists, cum_dists, points[:, 1])
+        return np.column_stack((x_dense, y_dense))
 
-    # Get the normalized progress [0.0 to 1.0] for both boundaries
-    t_B = calc_normalized_dist(B)
-    t_Y = calc_normalized_dist(Y)
+    # Create continuous, dense boundaries
+    B_dense = densify(B, 500)
+    Y_dense = densify(Y, 500)
+
+    raw_waypoints = []
     
-    # 3. Create a common progress vector with high resolution
-    # Using twice the max number of cones ensures a very smooth, dense path
-    num_points = max(len(B), len(Y)) * 2
-    t_common = np.linspace(0, 1, num_points)
-    
-    # 4. Interpolate X and Y coordinates for both boundaries at the common progress points
-    Bx_interp = np.interp(t_common, t_B, B[:, 0])
-    By_interp = np.interp(t_common, t_B, B[:, 1])
-    
-    Yx_interp = np.interp(t_common, t_Y, Y[:, 0])
-    Yy_interp = np.interp(t_common, t_Y, Y[:, 1])
-    
-    # 5. Calculate true midpoints
-    mid_x = (Bx_interp + Yx_interp) / 2.0
-    mid_y = (By_interp + Yy_interp) / 2.0
-    
-    # Format output
-    for x, y in zip(mid_x, mid_y):
+    # 3. Geometric Matching: Find the strictly closest yellow point for every blue point
+    for b_pt in B_dense:
+        # Calculate distances from this specific blue point to ALL yellow points
+        dists = np.linalg.norm(Y_dense - b_pt, axis=1)
+        closest_y_idx = np.argmin(dists)
+        closest_y_pt = Y_dense[closest_y_idx]
+        
+        # Calculate the true geometric midpoint across the track
+        midpoint = (b_pt + closest_y_pt) / 2.0
+        raw_waypoints.append(midpoint)
+        
+    raw_waypoints = np.array(raw_waypoints)
+
+    # 4. Smooth the midpoints to ensure a drivable racing line without jagged steering
+    window_size = 15
+    if len(raw_waypoints) >= window_size:
+        kernel = np.ones(window_size) / window_size
+        smooth_x = np.convolve(raw_waypoints[:, 0], kernel, mode='same')
+        smooth_y = np.convolve(raw_waypoints[:, 1], kernel, mode='same')
+        
+        # Protect the start and end points from convolution distortion
+        pad = window_size // 2
+        smooth_x[:pad] = raw_waypoints[:pad, 0]
+        smooth_x[-pad:] = raw_waypoints[-pad:, 0]
+        smooth_y[:pad] = raw_waypoints[:pad, 1]
+        smooth_y[-pad:] = raw_waypoints[-pad:, 1]
+    else:
+        smooth_x = raw_waypoints[:, 0]
+        smooth_y = raw_waypoints[:, 1]
+
+    # 5. Format output (downsample slightly so we don't overwhelm the controller)
+    step = max(1, len(smooth_x) // 150)
+    for x, y in zip(smooth_x[::step], smooth_y[::step]):
         path.append({"x": float(x), "y": float(y)})
 
     return path
