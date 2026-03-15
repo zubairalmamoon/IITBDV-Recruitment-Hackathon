@@ -5,6 +5,13 @@ You must implement two functions: plan() and control()
 
 import numpy as np
 
+
+def plan(cones: list[dict]) -> list[dict]:
+    print("======> I AM RUNNING THE NEW PLANNER! <======")
+    path = []
+    # ... rest of the code ...
+
+
 def plan(cones: list[dict]) -> list[dict]:
     """
     Generate a highly accurate centerline by digitally densifying the boundaries.
