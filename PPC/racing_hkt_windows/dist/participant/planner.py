@@ -1,6 +1,6 @@
 '''
 PPC Hackathon — Participant Boilerplate
-You must implement two functions: plan() and control()
+Implemented plan() function
 '''
 
 # ─── TYPES (for reference) ────────────────────────────────────────────────────
