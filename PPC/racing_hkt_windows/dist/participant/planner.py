@@ -7,57 +7,46 @@ import numpy as np
 
 def plan(cones: list[dict]) -> list[dict]:
     """
-    Generate a path from the cone layout using the mean of matched cones.
+    Generate a path from the cone layout.
     Called ONCE before the simulation starts.
     """
     path = []
     
-    # 1. Sort cones by their provided index to ensure they are in track order
+    # Sort cones by index to maintain general track order
     blue_cones = sorted([c for c in cones if c["side"] == "left"], key=lambda c: c["index"])
     yellow_cones = sorted([c for c in cones if c["side"] == "right"], key=lambda c: c["index"])
     
     if not blue_cones or not yellow_cones:
         return path
 
-    # 2. Find the minimum length in case there are missing cones on one side
-    min_length = min(len(blue_cones), len(yellow_cones))
-    
-    raw_waypoints = []
+    B = np.array([[c["x"], c["y"]] for c in blue_cones])
+    Y = np.array([[c["x"], c["y"]] for c in yellow_cones])
 
-    # 3. Calculate the mean (midpoint) for each matching pair of cones
-    for i in range(min_length):
-        b_x = blue_cones[i]["x"]
-        b_y = blue_cones[i]["y"]
-        
-        y_x = yellow_cones[i]["x"]
-        y_y = yellow_cones[i]["y"]
-        
-        mid_x = (b_x + y_x) / 2.0
-        mid_y = (b_y + y_y) / 2.0
-        
-        raw_waypoints.append([mid_x, mid_y])
+    waypoints = []
 
-    raw_waypoints = np.array(raw_waypoints)
-
-    # 4. Optional: Lightly smooth the path to prevent sudden steering jerks
-    # (A small window size of 3 just takes the edge off any misplaced cones)
-    window_size = 3
-    if len(raw_waypoints) >= window_size:
-        kernel = np.ones(window_size) / window_size
-        smooth_x = np.convolve(raw_waypoints[:, 0], kernel, mode='same')
-        smooth_y = np.convolve(raw_waypoints[:, 1], kernel, mode='same')
-        
-        # Keep the exact start and end points
-        smooth_x[0] = raw_waypoints[0, 0]
-        smooth_x[-1] = raw_waypoints[-1, 0]
-        smooth_y[0] = raw_waypoints[0, 1]
-        smooth_y[-1] = raw_waypoints[-1, 1]
+    # Iterate through the boundary that has MORE cones to ensure we don't cut corners
+    if len(B) >= len(Y):
+        primary = B
+        secondary = Y
     else:
-        smooth_x = raw_waypoints[:, 0]
-        smooth_y = raw_waypoints[:, 1]
+        primary = Y
+        secondary = B
 
-    # 5. Format the output to match the required list of dictionaries
-    for x, y in zip(smooth_x, smooth_y):
-        path.append({"x": float(x), "y": float(y)})
+    for pt in primary:
+        # 1. Find the strictly closest cone on the opposite side
+        dists = np.linalg.norm(secondary - pt, axis=1)
+        closest_pt = secondary[np.argmin(dists)]
+        
+        # 2. Calculate true geometric midpoint
+        midpoint = (pt + closest_pt) / 2.0
+        
+        # Prevent duplicate waypoints if multiple outer cones map to the same inner apex cone
+        if len(waypoints) == 0 or np.linalg.norm(waypoints[-1] - midpoint) > 0.5:
+            waypoints.append(midpoint)
+
+    # 3. Format output directly. 
+    # NO SMOOTHING APPLIED. Smoothing shrinks the turn radius and causes cone strikes.
+    for pt in waypoints:
+        path.append({"x": float(pt[0]), "y": float(pt[1])})
 
     return path
