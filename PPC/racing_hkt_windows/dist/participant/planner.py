@@ -7,12 +7,11 @@ import numpy as np
 
 def plan(cones: list[dict]) -> list[dict]:
     """
-    Generate a path from the cone layout.
-    Called ONCE before the simulation starts.
+    Generate a highly accurate centerline by digitally densifying the boundaries.
     """
     path = []
     
-    # Sort cones by index to maintain general track order
+    # 1. Sort cones to maintain track progression
     blue_cones = sorted([c for c in cones if c["side"] == "left"], key=lambda c: c["index"])
     yellow_cones = sorted([c for c in cones if c["side"] == "right"], key=lambda c: c["index"])
     
@@ -22,31 +21,39 @@ def plan(cones: list[dict]) -> list[dict]:
     B = np.array([[c["x"], c["y"]] for c in blue_cones])
     Y = np.array([[c["x"], c["y"]] for c in yellow_cones])
 
-    waypoints = []
+    # 2. Helper function to create a "solid wall" by interpolating points closely
+    def create_dense_boundary(points, interval=0.1):
+        # Calculate cumulative distance along the cones
+        diffs = np.diff(points, axis=0)
+        dists = np.linalg.norm(diffs, axis=1)
+        cum_dists = np.concatenate(([0], np.cumsum(dists)))
+        
+        # Create an array of evenly spaced distances (every 10cm)
+        even_dists = np.arange(0, cum_dists[-1], interval)
+        
+        # Interpolate X and Y coordinates along these distances
+        x_dense = np.interp(even_dists, cum_dists, points[:, 0])
+        y_dense = np.interp(even_dists, cum_dists, points[:, 1])
+        return np.column_stack((x_dense, y_dense))
 
-    # Iterate through the boundary that has MORE cones to ensure we don't cut corners
-    if len(B) >= len(Y):
-        primary = B
-        secondary = Y
+    # 3. Densify both boundaries to prevent chord-cutting
+    B_dense = create_dense_boundary(B, interval=0.1)
+    Y_dense = create_dense_boundary(Y, interval=0.1)
+
+    # 4. Use the longer boundary as the primary reference to ensure full coverage on curves
+    if len(B_dense) > len(Y_dense):
+        primary = B_dense
+        secondary = Y_dense
     else:
-        primary = Y
-        secondary = B
+        primary = Y_dense
+        secondary = B_dense
 
-    for pt in primary:
-        # 1. Find the strictly closest cone on the opposite side
-        dists = np.linalg.norm(secondary - pt, axis=1)
-        closest_pt = secondary[np.argmin(dists)]
+    waypoints = []
+    
+    # 5. Calculate strict geometric midpoints
+    for p_pt in primary:
+        # Find the absolute closest point on the solid opposite wall
+        dists = np.linalg.norm(secondary - p_pt, axis=1)
+        closest_sec = secondary[np.argmin(dists)]
         
-        # 2. Calculate true geometric midpoint
-        midpoint = (pt + closest_pt) / 2.0
-        
-        # Prevent duplicate waypoints if multiple outer cones map to the same inner apex cone
-        if len(waypoints) == 0 or np.linalg.norm(waypoints[-1] - midpoint) > 0.5:
-            waypoints.append(midpoint)
-
-    # 3. Format output directly. 
-    # NO SMOOTHING APPLIED. Smoothing shrinks the turn radius and causes cone strikes.
-    for pt in waypoints:
-        path.append({"x": float(pt[0]), "y": float(pt[1])})
-
-    return path
+        # Calculate true midpoint
