@@ -12,9 +12,10 @@ def steering(path: list[dict], state: dict) -> float:
     path_pts = np.array([[p["x"], p["y"]] for p in path])
     car_pos = np.array([x, y])
 
+
     # 1. Calculate dynamic lookahead distance (Ld) based on speed
-    # Minimum 3.0m, increasing by 0.5m per 1m/s of speed
-    ld = np.clip(0.5 * vx + 3.0, 3.0, 12.0) 
+    # Reduced multiplier and base distance for tighter cornering
+    ld = np.clip(0.2 * vx + 1.5, 1.8, 7.0)
 
     # 2. Find the closest point on the path to the car
     distances = np.linalg.norm(path_pts - car_pos, axis=1)
