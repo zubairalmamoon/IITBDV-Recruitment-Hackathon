@@ -5,13 +5,6 @@ You must implement two functions: plan() and control()
 
 import numpy as np
 
-
-def plan(cones: list[dict]) -> list[dict]:
-    print("======> I AM RUNNING THE NEW PLANNER! <======")
-    path = []
-    # ... rest of the code ...
-
-
 def plan(cones: list[dict]) -> list[dict]:
     """
     Generate a highly accurate centerline by digitally densifying the boundaries.
@@ -64,3 +57,14 @@ def plan(cones: list[dict]) -> list[dict]:
         closest_sec = secondary[np.argmin(dists)]
         
         # Calculate true midpoint
+        midpoint = (p_pt + closest_sec) / 2.0
+        
+        # Space out the final waypoints (e.g., every 0.5 meters) so the controller isn't overwhelmed
+        if len(waypoints) == 0 or np.linalg.norm(waypoints[-1] - midpoint) >= 0.5:
+            waypoints.append(midpoint)
+
+    # 6. Format the output
+    for pt in waypoints:
+        path.append({"x": float(pt[0]), "y": float(pt[1])})
+
+    return path
