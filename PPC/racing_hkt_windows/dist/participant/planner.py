@@ -1,75 +1,61 @@
 '''
 PPC Hackathon — Participant Boilerplate
-Implemented plan() function
+You must implement two functions: plan() and control()
 '''
 
-# ─── TYPES (for reference) ────────────────────────────────────────────────────
-
-# Cone: {"x": float, "y": float, "side": "left" | "right", "index": int}
-# State: {"x", "y", "yaw", "vx", "vy", "yaw_rate"}  
-# CmdFeedback: {"throttle", "steer"}        
-
-# ─── PLANNER ──────────────────────────────────────────────────────────────────
 import numpy as np
 
 def plan(cones: list[dict]) -> list[dict]:
     """
     Generate a path from the cone layout.
     Called ONCE before the simulation starts.
-
-    Args:
-        cones: List of cone dicts with keys x, y, side ("left"/"right"), index
-
-    Returns:
-        path: List of waypoints [{"x": float, "y": float}, ...]
-              Ordered from start to finish.
     """
     path = []
     
-    # Sort cones by index to maintain track order
+    # 1. Sort cones by index to maintain track order
     blue_cones = sorted([c for c in cones if c["side"] == "left"], key=lambda c: c["index"])
-    yellow_cones = [c for c in cones if c["side"] == "right"]
+    yellow_cones = sorted([c for c in cones if c["side"] == "right"], key=lambda c: c["index"])
     
     if not blue_cones or not yellow_cones:
         return path
 
-    yellow_coords = np.array([[c["x"], c["y"]] for c in yellow_cones])
-    raw_waypoints = []
+    B = np.array([[c["x"], c["y"]] for c in blue_cones])
+    Y = np.array([[c["x"], c["y"]] for c in yellow_cones])
 
-    # Find the nearest right cone for every left cone to calculate track midpoints
-    for b_cone in blue_cones:
-        b_pos = np.array([b_cone["x"], b_cone["y"]])
-        
-        # Calculate Euclidean distance to all yellow cones
-        distances = np.linalg.norm(yellow_coords - b_pos, axis=1)
-        closest_y_idx = np.argmin(distances)
-        closest_y_pos = yellow_coords[closest_y_idx]
-        
-        # Calculate midpoint
-        midpoint = (b_pos + closest_y_pos) / 2.0
-        raw_waypoints.append(midpoint)
-        
-    raw_waypoints = np.array(raw_waypoints)
+    # 2. Function to calculate normalized cumulative distance along a boundary
+    def calc_normalized_dist(points):
+        # Calculate distances between consecutive points
+        diffs = np.diff(points, axis=0)
+        dists = np.linalg.norm(diffs, axis=1)
+        # Cumulative sum of distances
+        cum_dist = np.concatenate(([0], np.cumsum(dists)))
+        # Normalize to range [0, 1]
+        if cum_dist[-1] > 0:
+            cum_dist = cum_dist / cum_dist[-1]
+        return cum_dist
 
-    # Smooth the path using a moving average window to create a better racing line
-    window_size = 5
-    if len(raw_waypoints) >= window_size:
-        kernel = np.ones(window_size) / window_size
-        smooth_x = np.convolve(raw_waypoints[:, 0], kernel, mode='same')
-        smooth_y = np.convolve(raw_waypoints[:, 1], kernel, mode='same')
-        
-        # Handle edges affected by 'same' convolution by keeping raw values at the very ends
-        pad = window_size // 2
-        smooth_x[:pad] = raw_waypoints[:pad, 0]
-        smooth_x[-pad:] = raw_waypoints[-pad:, 0]
-        smooth_y[:pad] = raw_waypoints[:pad, 1]
-        smooth_y[-pad:] = raw_waypoints[-pad:, 1]
-    else:
-        smooth_x = raw_waypoints[:, 0]
-        smooth_y = raw_waypoints[:, 1]
-
+    # Get the normalized progress [0.0 to 1.0] for both boundaries
+    t_B = calc_normalized_dist(B)
+    t_Y = calc_normalized_dist(Y)
+    
+    # 3. Create a common progress vector with high resolution
+    # Using twice the max number of cones ensures a very smooth, dense path
+    num_points = max(len(B), len(Y)) * 2
+    t_common = np.linspace(0, 1, num_points)
+    
+    # 4. Interpolate X and Y coordinates for both boundaries at the common progress points
+    Bx_interp = np.interp(t_common, t_B, B[:, 0])
+    By_interp = np.interp(t_common, t_B, B[:, 1])
+    
+    Yx_interp = np.interp(t_common, t_Y, Y[:, 0])
+    Yy_interp = np.interp(t_common, t_Y, Y[:, 1])
+    
+    # 5. Calculate true midpoints
+    mid_x = (Bx_interp + Yx_interp) / 2.0
+    mid_y = (By_interp + Yy_interp) / 2.0
+    
     # Format output
-    for x, y in zip(smooth_x, smooth_y):
+    for x, y in zip(mid_x, mid_y):
         path.append({"x": float(x), "y": float(y)})
 
     return path
