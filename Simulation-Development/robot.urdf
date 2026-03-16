@@ -1,0 +1,261 @@
+<?xml version="1.0"?>
+<!--
+  robot.urdf  —  Physics Simulation Hackathon
+  =============================================
+  A differential-drive ground robot with:
+    • Rectangular chassis body
+    • Two driven wheels (left / right)
+    • One front and one rear caster ball
+    • Sensor tower (vertical post + LIDAR disk + IMU block + camera box)
+
+  All links are defined in their LOCAL frame; joints give the offset
+  relative to the parent link.
+
+  Coordinate convention (ROS REP 103):
+    X → forward,  Y → left,  Z → up
+-->
+<robot name="physics_bot">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       BASE CHASSIS
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/>
+      <geometry>
+        <!-- Main chassis plate: 0.40 m long, 0.28 m wide, 0.08 m tall -->
+        <box size="0.40 0.28 0.08"/>
+      </geometry>
+      <material name="dark_grey">
+        <color rgba="0.25 0.25 0.25 1.0"/>
+      </material>
+    </visual>
+
+    <!-- Inertial properties (used if physics plugin attached later) -->
+    <inertial>
+      <mass value="4.5"/>
+      <inertia ixx="0.05" iyy="0.08" izz="0.10"
+               ixy="0"    ixz="0"    iyz="0"/>
+    </inertial>
+  </link>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       LEFT WHEEL
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="left_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.04"/>
+      </geometry>
+      <material name="rubber_black">
+        <color rgba="0.08 0.08 0.08 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="0.25"/>
+      <inertia ixx="0.0003" iyy="0.0003" izz="0.0005"
+               ixy="0"      ixz="0"      iyz="0"/>
+    </inertial>
+  </link>
+
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child  link="left_wheel"/>
+    <!-- offset: centred fore-aft, 0.15 m to the left, flush with ground -->
+    <origin xyz="0.0 0.15 0.0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       RIGHT WHEEL
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="right_wheel">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.04"/>
+      </geometry>
+      <material name="rubber_black">
+        <color rgba="0.08 0.08 0.08 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="0.25"/>
+      <inertia ixx="0.0003" iyy="0.0003" izz="0.0005"
+               ixy="0"      ixz="0"      iyz="0"/>
+    </inertial>
+  </link>
+
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child  link="right_wheel"/>
+    <origin xyz="0.0 -0.15 0.0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       FRONT CASTER
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="front_caster">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.025"/>
+      </geometry>
+      <material name="metal_silver">
+        <color rgba="0.7 0.7 0.7 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="0.00001" iyy="0.00001" izz="0.00001"
+               ixy="0"       ixz="0"       iyz="0"/>
+    </inertial>
+  </link>
+
+  <joint name="front_caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="front_caster"/>
+    <origin xyz="0.18 0 -0.025" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       REAR CASTER
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="rear_caster">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.025"/>
+      </geometry>
+      <material name="metal_silver">
+        <color rgba="0.7 0.7 0.7 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="0.00001" iyy="0.00001" izz="0.00001"
+               ixy="0"       ixz="0"       iyz="0"/>
+    </inertial>
+  </link>
+
+  <joint name="rear_caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="rear_caster"/>
+    <origin xyz="-0.18 0 -0.025" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SENSOR TOWER  (vertical mast on top of chassis)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="sensor_tower">
+    <visual>
+      <origin xyz="0 0 0.075" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.015" length="0.15"/>
+      </geometry>
+      <material name="aluminium">
+        <color rgba="0.85 0.85 0.85 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="sensor_tower_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="sensor_tower"/>
+    <!-- Mount at centre of chassis top -->
+    <origin xyz="0 0 0.09" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       LIDAR  (flat disk spinning on top of mast)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="lidar_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.06" length="0.035"/>
+      </geometry>
+      <material name="lidar_blue">
+        <color rgba="0.0 0.35 0.75 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="0.08"/>
+      <inertia ixx="0.00005" iyy="0.00005" izz="0.00008"
+               ixy="0"       ixz="0"       iyz="0"/>
+    </inertial>
+  </link>
+
+  <joint name="lidar_joint" type="fixed">
+    <parent link="sensor_tower"/>
+    <child  link="lidar_link"/>
+    <origin xyz="0 0 0.168" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       IMU BLOCK  (small cube on top of mast, just below LIDAR)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="imu_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.03 0.03 0.015"/>
+      </geometry>
+      <material name="imu_green">
+        <color rgba="0.0 0.6 0.2 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="sensor_tower"/>
+    <child  link="imu_link"/>
+    <origin xyz="0.035 0 0.09" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       FRONT CAMERA  (small box facing forward)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="camera_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.04 0.08 0.04"/>
+      </geometry>
+      <material name="camera_black">
+        <color rgba="0.1 0.1 0.1 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="camera_link"/>
+    <!-- Mounted on the front face, slightly above the chassis mid-line -->
+    <origin xyz="0.21 0 0.06" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       CAMERA LENS (small cylinder protruding from camera body)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <link name="camera_lens">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder radius="0.015" length="0.02"/>
+      </geometry>
+      <material name="lens_glass">
+        <color rgba="0.3 0.6 0.9 0.8"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="camera_lens_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child  link="camera_lens"/>
+    <origin xyz="0.02 0 0" rpy="0 0 0"/>
+  </joint>
+
+</robot>
