@@ -90,4 +90,4 @@ def control(
     speed_penalty = (abs(steer) / 0.5) * 3.0 
     
     # Minimum speed of 2.0 m/s around tight hairpins
-    target_speed = np.clip(base_speed -
+    target_speed = np.clip(base_speed -speed_penalty)
